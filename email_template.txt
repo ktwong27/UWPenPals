@@ -1,0 +1,18 @@
+For the following template, fill in any blanks with the format <...>
+
+Hello {name},
+
+This is <ENTER YOUR NAME HERE> from UW Pen Pals! Here is your penpal's name, address, and pronouns:
+
+{penpal}
+{address}
+Pronouns: {pronouns}
+
+Let us know if you have any questions or concerns. Whether you're here to find love, find a new friend, or just continue building our UW community, we are so happy you signed up for UW Pen Pals! Due to COVID-19, we ask that you refrain from licking the envelope when sealing and use water instead. You can use a q-tip, napkin, sponge, or some tape to seal the envelope. In case you need assistance, here is a resource on how to address a letter: https://www.wikihow.com/Address-a-Letter
+
+A lot has happened since our last round of pen pals and we're grateful for your continued support of the USPS. Remember that a single postage stamp is around $0.55, and a booklet is $11. In this edition of UW Pen Pals, <NUM_PEOPLE> people signed up to send a letter meaning that together we will be helping to get anywhere from $<0.55*NUM_PEOPLE> to $<11*NUM_PEOPLE> to an essential service that we can't afford to lose. So feel free to buy a booklet if you feel inclined to do so! https://store.usps.com/store/results/stamps/_/N-9y93lv
+
+Have fun, be respectful, and don't forget to introduce yourself!
+Happy letter sending,
+
+<ENTER YOUR NAME HERE>
