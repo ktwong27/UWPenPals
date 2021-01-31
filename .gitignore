@@ -1,3 +1,8 @@
 # Ignore Mac system files
 .DS_store
 
+# Project specific files
+__pycache__/
+attributes.json
+ratings.tsv
+penpal_matches.tsv

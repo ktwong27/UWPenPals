@@ -1,64 +1,19 @@
 # UW Penpals Matchmaking Script
-# 9/16/2020
+# 1/30/2021
 # Author Kristofer Wong
-# NLP code credit: Rupert Thomas
-#   -> https://towardsdatascience.com/how-to-rank-text-content-by-semantic-similarity-4d2419a84c32
-
 
 import sys
 import csv
-from enum import IntEnum
 import numpy as np
+import json
+import match_rater
 
-import nltk
-from re import sub
-from fuzzywuzzy import fuzz
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import linear_kernel
-import gensim.downloader as api
-from gensim.utils import simple_preprocess
-from gensim.corpora import Dictionary
-from gensim.models import TfidfModel
-from gensim.models import WordEmbeddingSimilarityIndex
-from gensim.similarities import SparseTermSimilarityMatrix
-from gensim.similarities import SoftCosineSimilarity
-
-
-class Person(IntEnum):
-    NAME = 1
-    ADDRESS = 2
-    MAJOR = 3
-    YEAR = 4
-    GENDER = 5
-    PRONOUNS = 6
-    PAL_GENDER = 7
-    HOBBIES = 8
-    ABOUT = 9
-    SOCIAL = 10
-    MULTIPLE = 11
-    HOUSE = 12
-    ELEMENT = 13
-    OTHER = 14
-    WANT = 15
-
-
-class Weights(IntEnum):
-    NAME = 0
-    ADDRESS = 0
-    MAJOR = 1
-    YEAR = 1
-    GENDER = 0
-    PRONOUNS = 0
-    PAL_GENDER = 0
-    HOBBIES = 3
-    ABOUT = 2
-    SOCIAL = 0
-    MULTIPLE = 0
-    HOUSE = 1
-    ELEMENT = 1
-    OTHER = 0
-    WANT = 4
-
+NAME = 0
+ADDRESS = 0
+EMAIL_0 = 0
+EMAIL_1 = 0
+MULTIPLE_PALS = 0
+PRONOUNS = 0
 
 def remove_duplicate_entries(responses):
     # Get rid of duplicates
@@ -68,193 +23,15 @@ def remove_duplicate_entries(responses):
     # reversed so we get rid of first submission.
     # people tend to submit multiple times to change something
     for response in reversed(responses):
-        if response[Person.NAME] in names \
-                and response[Person.ADDRESS] in addresses:
+        if response[NAME] in names \
+                and response[ADDRESS] in addresses:
             responses.remove(response)
-        names.add(response[Person.NAME])
-        addresses.add(response[Person.ADDRESS])
+        names.add(response[NAME])
+        addresses.add(response[ADDRESS])
 
 
-# want:
-#   TSC
-
-
-class TextSimilarityCalculator:
-    # Interface lemma tokenizer from nltk with sklearn
-    class LemmaTokenizer:
-        ignore_tokens = [',', '.', ';', ':', '"', '``', "''", '`']
-
-        def __init__(self):
-            self.wnl = nltk.stem.WordNetLemmatizer()
-
-        def __call__(self, doc):
-            return [self.wnl.lemmatize(t) for t in nltk.word_tokenize(doc) if t not in self.ignore_tokens]
-
-    stopwords = nltk.corpus.stopwords.words('english')
-
-    def __init__(self):
-        self.documents = None
-
-    @staticmethod
-    def preprocess_document(doc):
-        # Tokenize, clean up input document string
-        doc = sub(r'<img[^<>]+(>|$)', " image_token ", doc)
-        doc = sub(r'<[^<>]+(>|$)', " ", doc)
-        doc = sub(r'\[img_assist[^]]*?\]', " ", doc)
-        doc = sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', " url_token ", doc)
-        return [token for token in simple_preprocess(doc, min_len=0, max_len=float("inf"))
-                if token not in TextSimilarityCalculator.stopwords]
-
-    def preprocess_semantic_similarity(self, documents, glove):
-        # For use for calculating similarities in about and want categories
-        stopwords = list(TextSimilarityCalculator.stopwords)
-
-        # Preprocess the documents, including the query string
-        corpus = [preprocess(document, stopwords) for document in documents]
-
-        # Load the model: this is a big file, can take a while to download and open
-        similarity_index = WordEmbeddingSimilarityIndex(glove)
-
-        # Build the term dictionary, TF-idf model
-        dictionary = Dictionary(corpus)
-        tfidf = TfidfModel(dictionary=dictionary)
-
-        # Create the term similarity matrix.
-        similarity_matrix = SparseTermSimilarityMatrix(similarity_index, dictionary, tfidf)
-
-        return [dictionary, tfidf, similarity_matrix, corpus, stopwords]
-
-    def calculate_semantic_similarity(self, query, preprocessed_array):
-        dictionary = preprocessed_array[0]
-        tfidf = preprocessed_array[1]
-        similarity_matrix = preprocessed_array[2]
-        corpus = preprocessed_array[3]
-        stopwords = preprocessed_array[4]
-
-        query = preprocess(query, stopwords)
-        query_tf = tfidf[dictionary.doc2bow(query)]
-
-        index = SoftCosineSimilarity(
-            tfidf[[dictionary.doc2bow(document) for document in corpus]],
-            similarity_matrix)
-
-        doc_similarity_scores = index[query_tf]
-
-        return list(doc_similarity_scores)
-
-    @staticmethod
-    def calculate_tfidf_similarity(query, documents):
-        # For use for calculating similarities in major/minor and hobbies
-        stop_words = set(TextSimilarityCalculator.stopwords)
-
-        # Lemmatize the stop words
-        tokenizer = TextSimilarityCalculator.LemmaTokenizer()
-        token_stop = tokenizer(' '.join(stop_words))
-
-        # Create TF-idf model
-        vectorizer = TfidfVectorizer(stop_words=token_stop, tokenizer=tokenizer)
-        doc_vectors = vectorizer.fit_transform([str(query)] + list(documents))
-
-        # Calculate similarity
-        cosine_similarities = linear_kernel(doc_vectors[0:1], doc_vectors).flatten()
-
-        return [item.item() for item in cosine_similarities[1:]]
-
-    @staticmethod
-    def calculate_fuzzy_similarity(query, documents):
-        sim = []
-        for doc in documents:
-            sim.append(fuzz.token_set_ratio(query, doc))
-        return sim
-
-
-# Rate all possible matches
-def rate_matches(responses):
-    print("Preprocessing data for match rating...")
-
-    glove = api.load("glove-wiki-gigaword-50")
-
-    if responses[:, Person.ABOUT].tolist().count('') != len(responses[:, Person.ABOUT]):
-        preprocessed_about = preprocess_semantic_similarity(responses[:, Person.ABOUT], glove)
-    if responses[:, Person.WANT].tolist().count('') != len(responses[:, Person.WANT]):
-        preprocessed_want = preprocess_semantic_similarity(responses[:, Person.WANT], glove)
-
-    print("Rating all matches now...", end="\r")
-    progress = [int(.1 * len(responses)), int(.2 * len(responses)), int(.3 * len(responses)),
-                int(.4 * len(responses)), int(.5 * len(responses)), int(.6 * len(responses)),
-                int(.7 * len(responses)), int(.8 * len(responses)), int(.9 * len(responses))]
-
-    ratings = np.zeros((1, len(responses)))
-    for r_index in range(len(responses)):
-        if r_index in progress:
-            percent = (progress.index(r_index) + 1) * 10
-            print("Rating all matches now... " + str(percent) + "% complete", end="\r")
-
-        curr_rating = np.zeros((len(responses)))
-
-        # get similarities listed for other responses
-        if responses[r_index, Person.MAJOR]:
-            major = calculate_fuzzy_similarity(responses[r_index, Person.MAJOR], responses[:, Person.MAJOR])
-            major[r_index] = 0
-            major = (np.array(major) / max(major)) * Weights.MAJOR
-            curr_rating += major
-
-        if responses[r_index, Person.HOBBIES]:
-            hobbies = calculate_fuzzy_similarity(responses[r_index, Person.HOBBIES], responses[:, Person.HOBBIES])
-            hobbies[r_index] = 0
-            hobbies = (np.array(hobbies) / max(hobbies)) * Weights.HOBBIES
-            curr_rating += hobbies
-
-        # might want to switch for tfidf for speed..
-        if responses[r_index, Person.ABOUT]:
-            assert(preprocessed_about)
-            # about = calculate_fuzzy_similarity(responses[r_index, Person.ABOUT], responses[:, Person.ABOUT])
-            about = calculate_semantic_similarity(responses[r_index, Person.ABOUT], preprocessed_about)
-            about[r_index] = 0
-            about = (np.array(about) / max(about)) * Weights.ABOUT
-            curr_rating += about
-
-        if responses[r_index, Person.WANT]:
-            assert(preprocessed_want)
-            # want = calculate_fuzzy_similarity(responses[r_index, Person.WANT], responses[:, Person.WANT])
-            want = calculate_semantic_similarity(responses[r_index, Person.WANT], preprocessed_want)
-            want[r_index] = 0
-            want = (np.array(want) / max(want)) * Weights.WANT
-            curr_rating += want
-
-        for o_index in range(len(responses)):
-            if r_index != o_index:
-                response = responses[r_index]
-                other = responses[o_index]
-
-                # if response GENDER not in other PAL_GENDER or vice versa, can't match
-                if (response[Person.PAL_GENDER] != "doesn't matter"
-                        and other[Person.GENDER] not in response[Person.PAL_GENDER]) \
-                        or (other[Person.PAL_GENDER] != "doesn't matter"
-                            and response[Person.GENDER] not in other[Person.PAL_GENDER]):
-
-                    curr_rating[o_index] = -1
-                    pass
-
-                # Year: +2 if same year, -1 if large age gap
-                if response[Person.YEAR] == other[Person.YEAR]:
-                    curr_rating[o_index] += Weights.YEAR
-                elif (response[Person.YEAR] == "1st Year" or response[Person.YEAR] == "2nd Year") \
-                        and (other[Person.YEAR] == "5th Year +" or other[Person.YEAR] == "Grad Student"):
-                    curr_rating[o_index] -= Weights.YEAR
-
-                if response[Person.ELEMENT] == other[Person.ELEMENT]:
-                    curr_rating[o_index] += Weights.ELEMENT
-                if response[Person.HOUSE] == other[Person.HOUSE]:
-                    curr_rating[o_index] += Weights.HOUSE
-
-        ratings = np.append(ratings, np.reshape(curr_rating, (1, len(responses))), axis=0)
-    print("Rating all matches now... 100% complete")
-
-    return ratings[1:, :]  # need to append another column of 0s
-
-
-# create the final assignments
+# create the final assignments 
+# TODO: Change this to adapted Stable Roommates problem with replacement for those who are ok with multiple pals
 def assign_penpals(data, match_ratings):
     penpals = np.ones((len(data), 2)).astype(int)
     penpals[:] = -1
@@ -263,7 +40,7 @@ def assign_penpals(data, match_ratings):
 
     multiple_pals = []
     for pal in range(len(data)):
-        if data[pal][Person.MULTIPLE] == "Yes":
+        if data[pal][MULTIPLE] == "Yes":
             multiple_pals.append(pal)
 
     while len(rating_pool) != 0:
@@ -309,22 +86,59 @@ def write_matrix_to_file(filename, list):
             f.write('\n')
 
 
-def main():  # args: -[r] filename [ratings_output_file] penpals_output_file
-    if len(sys.argv) != 2:
+def main():  # args: input_filename attributes_filename
+    if len(sys.argv) != 3:
+        print("Usage: python3 matchmaker.py input_file attributes_json")
         sys.exit(1)
 
+    # Preprocess the input data from the Google Form
     data = list(csv.reader(open(sys.argv[1], "r"), delimiter="\t"))
     remove_duplicate_entries(data)
 
+    # Set up prompts for output
     prompts = np.array(data[0])[1:].tolist()
     prompts.insert(0, "Hash Number")
     prompts.append("1st Penpal")
     prompts.append("2nd Penpal")
 
+    # Get rid of prompts from input data
     data = np.array(data)[1:, :]
 
+
+    # About data inputting
+    #   mc_attr, semantic_attr, and fuzzy_attr come from attributes.json
+    #   each will be an array with the indices into a response to get to x attribute
+    #   attr_weights is an array of arrays, [[mc_weights], [fuzzy_weights], [semantic_weights]]
+    # Process input attributes json file:
+    with open(sys.argv[2], "r") as f:
+        attributes = json.load(f)
+
+    NAME = attributes["NAME"][0]
+    ADDRESS = attributes["ADDRESS"][0]
+    EMAIL_0 = attributes["EMAIL_0"][0]
+    EMAIL_1 = attributes["NAME"][0]
+    MULTIPLE_PALS = attributes["MULTIPLE_PALS"][0]
+    PRONOUNS = attributes["PRONOUNS"][0]
+
+    mc_attr = []
+    fuzzy_attr = []
+    semantic_attr = []
+    attr_weights = [[], [], []]
+    for attribute in attributes:
+        attr_data = attributes[attribute]
+        if attr_data[1] == 1:
+            mc_attr.append(attr_data[0])
+            attr_weights[0].append(attr_data[2])
+        elif attr_data[1] == 2:
+            fuzzy_attr.append(attr_data[0])
+            attr_weights[1].append(attr_data[2])
+        elif attr_data[1] == 3:
+            semantic_attr.append(attr_data[0])
+            attr_weights[2].append(attr_data[2])
+
     # Rate all potential Penpal matches
-    ratings = rate_matches(data)
+    ratings = match_rater.rate_matches(data, mc_attr, fuzzy_attr, semantic_attr, attr_weights)
+
     write_matrix_to_file('ratings.tsv', ratings)
 
     print("Assigning penpals... ", end="")
