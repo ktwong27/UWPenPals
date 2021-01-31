@@ -4,21 +4,29 @@
 # NLP code credit: Rupert Thomas
 #   -> https://towardsdatascience.com/how-to-rank-text-content-by-semantic-similarity-4d2419a84c32
 
-import nltk
+# IMPORTS:
 import numpy as np
-from re import sub
-from fuzzywuzzy import fuzz
+
+# For TFIDF
+import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
+
+# For fuzzy comparisons
+from fuzzywuzzy import fuzz
+
+# For Semantic comparisons
+from re import sub
 from gensim.utils import simple_preprocess
 from gensim.corpora import Dictionary
 from gensim.models import TfidfModel
 from gensim.models import WordEmbeddingSimilarityIndex
 from gensim.similarities import SparseTermSimilarityMatrix
 from gensim.similarities import SoftCosineSimilarity
-# import gensim.downloader as api
+import gensim.downloader as api
 
 
+# TFIDF similarity calculations
 def calculate_tfidf_similarity(query, documents):
     # For use for calculating similarities in major/minor and hobbies
 
@@ -48,6 +56,15 @@ def calculate_tfidf_similarity(query, documents):
     return [item.item() for item in cosine_similarities[1:]]
 
 
+# Fuzzy similarity calculations
+def calculate_fuzzy_similarity(query, documents):
+    sim = []
+    for doc in documents:
+        sim.append(fuzz.token_set_ratio(query, doc))
+    return sim
+
+
+# FUNCTIONS TO COMPARE SEMANTIC SIMILARITY OF TEXT USING COSINE SIMILARITY
 def preprocess(doc, stopwords):
     # Tokenize, clean up input document string
     doc = sub(r'<img[^<>]+(>|$)', " image_token ", doc)
@@ -97,45 +114,3 @@ def calculate_semantic_similarity(query, preprocessed_array):
     doc_similarity_scores = index[query_tf]
 
     return list(doc_similarity_scores)
-
-
-def calculate_fuzzy_similarity(query, documents):
-    sim = []
-    for doc in documents:
-        sim.append(fuzz.token_set_ratio(query, doc))
-    return sim
-
-
-def rate_short_responses(responses, fuzzy_attributes, semantic_attributes, attribute_weights):
-    # glove = api.load("glove-wiki-gigaword-50")
-    ratings_matrix = np.zeros((1, len(responses)))
-    fuzzy_weights = attribute_weights[0]
-    semantic_weights = attribute_weights[1]
-
-    for r_index in range(len(responses)):
-        curr_rating = np.zeros((len(responses)))
-        # Fuzzy simularity calculations used for simple short answer questions "fuzzy_attributes" 
-        for attribute in range(len(fuzzy_attributes)):
-            # Don't process if this person has no response for this attribute
-            if responses[r_index, fuzzy_attributes[attribute]]:
-                attr_rating = calculate_fuzzy_similarity(responses[r_index, fuzzy_attributes[attribute]], responses[:, fuzzy_attributes[attribute]])
-                # Don't want match with self
-                attr_rating[r_index] = 0
-                # Normalize fuzzy calculations to proportion of attribute weight
-                attr_rating = (np.array(attr_rating) / max(attr_rating)) * fuzzy_weights[attribute]
-                curr_rating += attr_rating
-        # Semantic Similarity calculations used for open ended short answer questions "semantic_attributes"   
-        # for attribute in range(len(semantic_attributes)):
-        #     print(semantic_attributes)
-        #     print(semantic_weights)
-        #     # preprocessed = preprocess_semantic_similarity(responses[:, attribute], glove)
-        #     if responses[r_index, attribute]: #if preprocessed and responses[r_index, attribute]:
-        #         # attr_rating = calculate_fuzzy_similarity(responses[r_index, attribute], preprocessed)
-        #         attr_rating = calculate_fuzzy_similarity(responses[r_index, attribute], responses[:, attribute])
-        #         attr_rating[r_index] = 0
-        #         attr_rating = (np.array(attr_rating) / max(attr_rating)) * semantic_weights[attribute]
-        #         curr_rating += attr_rating
-
-        ratings_matrix = np.append(ratings_matrix, np.reshape(curr_rating, (1, len(responses))), axis=0)
-    
-    return ratings_matrix[1:, :]

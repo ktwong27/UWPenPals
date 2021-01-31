@@ -44,6 +44,7 @@ def assign_penpals(data, match_ratings):
             multiple_pals.append(pal)
 
     while len(rating_pool) != 0:
+        print(len(rating_pool))
 
         # Need some matches structure.. how do I do this with multiple pals?
         # Array of ints representing match for that index, if multiple matches, list in that index.
@@ -53,6 +54,7 @@ def assign_penpals(data, match_ratings):
         while person.tolist().index(max(person)) not in rating_pool \
                 and person.tolist().index(max(person)) not in multiple_pals:
             person[person.tolist().index(max(person))] = 0
+            # TODO infinite loop
 
         index_of_pal = person.tolist().index(max(person))
         if index_of_pal in rating_pool:
@@ -135,24 +137,20 @@ def main():  # args: input_filename attributes_filename
 
     write_matrix_to_file('ratings.tsv', ratings)
 
-    # print("Assigning penpals... ", end="")
+    print("Assigning penpals... ") #, end="")
     # Create Penpal Assignments
-    # print(data[:, :5])
-    data = data[:, :5]
-    # print(data)
+    data = data[:, :5] # don't need all the responses anymore TODO: add pronouns to this
     penpal_assignments = np.append(data, assign_penpals(data, ratings), axis=1)
    
-
     # # Format Output Table: Add hash number
     penpal_assignments = np.append(np.array(range(1, len(penpal_assignments) + 1)).reshape(len(penpal_assignments), 1),
                                    penpal_assignments, axis=1)
-    print(penpal_assignments)
+
     # Format Output Table: Add prompts
     prompts = ["Hash", "Name", "Address_0", "Address_1", "Email_0", "Email_1", "Penpal_0", "Penpal_1"]
     penpal_assignments = np.append(np.array(prompts).reshape(1, 8), penpal_assignments, axis=0)
 
-
-    # # Write penpals to file!!
+    # Write penpals to file!!
     write_matrix_to_file('penpal_matches.tsv', penpal_assignments)
     print("Done!")
 
