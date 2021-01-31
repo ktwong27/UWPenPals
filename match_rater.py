@@ -52,9 +52,9 @@ def rate_matches(responses, mc_attributes, fuzzy_attributes, semantic_attributes
 
     # Rate all matches based on short response questions
     matrix_ratings = short_response_parsing.rate_short_responses(responses, fuzzy_attributes, semantic_attributes, attribute_weights[1:])
-    print(matrix_ratings)
+    # print(matrix_ratings)
     # Adjust rating for all matches' multiple choice characteristics
     matrix_ratings = rate_mc(matrix_ratings, responses, mc_attributes, attribute_weights[0])
-    print(matrix_ratings)
+    # print(matrix_ratings)
     return matrix_ratings
 
