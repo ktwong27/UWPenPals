@@ -108,8 +108,7 @@ def calculate_fuzzy_similarity(query, documents):
 
 def rate_short_responses(responses, fuzzy_attributes, semantic_attributes, attribute_weights):
     # glove = api.load("glove-wiki-gigaword-50")
-
-    matrix_ratings = np.zeros((1, len(responses)))
+    ratings_matrix = np.zeros((1, len(responses)))
     fuzzy_weights = attribute_weights[0]
     semantic_weights = attribute_weights[1]
 
@@ -117,21 +116,26 @@ def rate_short_responses(responses, fuzzy_attributes, semantic_attributes, attri
         curr_rating = np.zeros((len(responses)))
         # Fuzzy simularity calculations used for simple short answer questions "fuzzy_attributes" 
         for attribute in range(len(fuzzy_attributes)):
-            if responses[r_index, attribute]:
-                attr_rating = calculate_fuzzy_similarity(responses[r_index, attribute], responses[:, attribute])
+            # Don't process if this person has no response for this attribute
+            if responses[r_index, fuzzy_attributes[attribute]]:
+                attr_rating = calculate_fuzzy_similarity(responses[r_index, fuzzy_attributes[attribute]], responses[:, fuzzy_attributes[attribute]])
+                # Don't want match with self
                 attr_rating[r_index] = 0
+                # Normalize fuzzy calculations to proportion of attribute weight
                 attr_rating = (np.array(attr_rating) / max(attr_rating)) * fuzzy_weights[attribute]
                 curr_rating += attr_rating
         # Semantic Similarity calculations used for open ended short answer questions "semantic_attributes"   
-        for attribute in range(len(semantic_attributes)):
-            # preprocessed = preprocess_semantic_similarity(responses[:, attribute], glove)
-            if responses[r_index, attribute]: #if preprocessed and responses[r_index, attribute]:
-                # attr_rating = calculate_semantic_similarity(responses[r_index, attribute], preprocessed)
-                attr_rating = calculate_fuzzy_similarity(responses[r_index, attribute], responses[:, attribute])
-                attr_rating[r_index] = 0
-                attr_rating = (np.array(attr_rating) / max(attr_rating)) * semantic_weights[attribute]
-                curr_rating += attr_rating
-        
-        matrix_ratings = np.append(matrix_ratings, np.reshape(curr_rating, (1, len(responses))), axis=0)
- 
-    return matrix_ratings[1:, :]
+        # for attribute in range(len(semantic_attributes)):
+        #     print(semantic_attributes)
+        #     print(semantic_weights)
+        #     # preprocessed = preprocess_semantic_similarity(responses[:, attribute], glove)
+        #     if responses[r_index, attribute]: #if preprocessed and responses[r_index, attribute]:
+        #         # attr_rating = calculate_fuzzy_similarity(responses[r_index, attribute], preprocessed)
+        #         attr_rating = calculate_fuzzy_similarity(responses[r_index, attribute], responses[:, attribute])
+        #         attr_rating[r_index] = 0
+        #         attr_rating = (np.array(attr_rating) / max(attr_rating)) * semantic_weights[attribute]
+        #         curr_rating += attr_rating
+
+        ratings_matrix = np.append(ratings_matrix, np.reshape(curr_rating, (1, len(responses))), axis=0)
+    
+    return ratings_matrix[1:, :]

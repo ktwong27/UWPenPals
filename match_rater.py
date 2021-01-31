@@ -6,8 +6,6 @@ def rate_mc(matrix_ratings, responses, mc_attributes, attribute_weights):
     GENDER = 1
     PAL_GENDER = 2
 
-    print(matrix_ratings)
-
     for response_idx in range(len(responses)):
         curr_rating = matrix_ratings[response_idx]
 
@@ -20,13 +18,12 @@ def rate_mc(matrix_ratings, responses, mc_attributes, attribute_weights):
 
             # Specific attributes (Gender, Year)
             # if response GENDER not in other PAL_GENDER or vice versa, can't match
-            if (response[PAL_GENDER] != "doesn't matter"
+            if (response[mc_attributes[PAL_GENDER]] != "Doesn't matter"
                     and other[mc_attributes[GENDER]] not in response[mc_attributes[PAL_GENDER]]) \
-                    or (other[PAL_GENDER] != "doesn't matter"
+                    or (other[mc_attributes[PAL_GENDER]] != "Doesn't matter"
                         and response[mc_attributes[GENDER]] not in other[mc_attributes[PAL_GENDER]]):
                 curr_rating[other_idx] = -1
                 continue
-                pass
 
             # Year: +2 if same year, don't match if large gap
             if response[mc_attributes[YEAR]] == other[mc_attributes[YEAR]]:
@@ -34,6 +31,7 @@ def rate_mc(matrix_ratings, responses, mc_attributes, attribute_weights):
             elif (response[mc_attributes[YEAR]] == "1st Year" or response[mc_attributes[YEAR]] == "2nd Year") \
                     and (other[mc_attributes[YEAR]] == "5th Year +" or other[mc_attributes[YEAR]] == "Grad Student"):
                 curr_rating[other_idx] = -1
+                print("Age difference: ", response[0], other[0])
                 continue
 
 
@@ -54,9 +52,9 @@ def rate_matches(responses, mc_attributes, fuzzy_attributes, semantic_attributes
 
     # Rate all matches based on short response questions
     matrix_ratings = short_response_parsing.rate_short_responses(responses, fuzzy_attributes, semantic_attributes, attribute_weights[1:])
-
+    print(matrix_ratings)
     # Adjust rating for all matches' multiple choice characteristics
     matrix_ratings = rate_mc(matrix_ratings, responses, mc_attributes, attribute_weights[0])
-
+    print(matrix_ratings)
     return matrix_ratings
 

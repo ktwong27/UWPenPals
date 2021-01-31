@@ -40,7 +40,7 @@ def assign_penpals(data, match_ratings):
 
     multiple_pals = []
     for pal in range(len(data)):
-        if data[pal][MULTIPLE] == "Yes":
+        if data[pal][MULTIPLE_PALS] == "Yes":
             multiple_pals.append(pal)
 
     while len(rating_pool) != 0:
@@ -93,17 +93,18 @@ def main():  # args: input_filename attributes_filename
 
     # Preprocess the input data from the Google Form
     data = list(csv.reader(open(sys.argv[1], "r"), delimiter="\t"))
-    remove_duplicate_entries(data)
+    # remove_duplicate_entries(data)
+    
 
     # Set up prompts for output
     prompts = np.array(data[0])[1:].tolist()
     prompts.insert(0, "Hash Number")
     prompts.append("1st Penpal")
     prompts.append("2nd Penpal")
+    print(prompts)
 
     # Get rid of prompts from input data
-    data = np.array(data)[1:, :]
-
+    data = np.array(data)[1:, 1:]
 
     # About data inputting
     #   mc_attr, semantic_attr, and fuzzy_attr come from attributes.json
@@ -114,7 +115,8 @@ def main():  # args: input_filename attributes_filename
         attributes = json.load(f)
 
     NAME = attributes["NAME"][0]
-    ADDRESS = attributes["ADDRESS"][0]
+    ADDRESS_0 = attributes["ADDRESS_0"][0]
+    ADDRESS_0 = attributes["ADDRESS_0"][0]
     EMAIL_0 = attributes["EMAIL_0"][0]
     EMAIL_1 = attributes["NAME"][0]
     MULTIPLE_PALS = attributes["MULTIPLE_PALS"][0]
@@ -149,8 +151,9 @@ def main():  # args: input_filename attributes_filename
     penpal_assignments = np.append(np.array(range(1, len(penpal_assignments) + 1)).reshape(len(penpal_assignments), 1),
                                    penpal_assignments, axis=1)
 
+    print(penpal_assignments)
     # Format Output Table: Add prompts
-    penpal_assignments = np.append(np.array(prompts).reshape(1, 18), penpal_assignments, axis=0)
+    # penpal_assignments = np.append(np.array(prompts).reshape(1, 29), penpal_assignments, axis=0)
 
     # Write penpals to file!!
     write_matrix_to_file('penpal_matches.tsv', penpal_assignments)
