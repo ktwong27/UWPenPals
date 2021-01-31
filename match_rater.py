@@ -111,4 +111,3 @@ def rate_matches(responses, mc_attributes, fuzzy_attributes, semantic_attributes
     matrix_ratings = rate_mc(matrix_ratings, responses, mc_attributes, attribute_weights[0])
 
     return matrix_ratings
-

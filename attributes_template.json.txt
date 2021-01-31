@@ -2,7 +2,8 @@ The following JSON object is a template for attributes.json:
 
 {
     "NAME" : [ 0, 0 ],
-    "ADDRESS" : [ 1, 0 ],
+    "ADDRESS_0" : [ 1, 0 ],
+    "ADDRESS_1" : [ 1, 0 ],
     "EMAIL_0" : [ 2, 0 ],
     "EMAIL_1" : [ 3, 0 ],
     "YEAR" : [ 4, 1, 2 ],
@@ -17,7 +18,7 @@ The following JSON object is a template for attributes.json:
 NOTES:
     The first 9 fields here must appear in this order, and therefore must be the first 9 questions in your Google Form.
     Each field is an array with the following values
-        [ INDEX, TYPE, WEIGHT]
+        [ INDEX, TYPE, WEIGHT ]
     INDEX is the index of the attribute for each response
     TYPE has 3 possible values:
         0 : data
@@ -25,3 +26,4 @@ NOTES:
         2 : short answer, simple
         3 : short answer, open ended
     WEIGHT is how much you want that attribute to affect the rating of any particular match
+        If data is not used for matching, no need to include WEIGHT
