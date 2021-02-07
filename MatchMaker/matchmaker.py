@@ -1,24 +1,113 @@
 # UW Penpals Matchmaking Script
 # 1/30/2021
 # Author Kristofer Wong
-
 import sys
 import csv
 import numpy as np
 import json
 import match_rater
 
-NAME = 0
-ADDRESS = 0
-EMAIL_0 = 0
-EMAIL_1 = 0
-MULTIPLE_PALS = 0
-PRONOUNS = 0
+def match(assignments, p0, p1, ismatched, optionsLeft):
+    assignments[p0].append(p1)
+    assignments[p1].append(p0)
+    ismatched[p0] = True
+    ismatched[p1] = True
+    optionsLeft[p0] += 100
+    optionsLeft[p1] += 100
 
-def remove_duplicate_entries(responses):
+
+def unmatch(assignments, p0, p1, ismatched, optionsLeft):
+    assignments[p0].remove(p1)
+    assignments[p1].remove(p0)
+    ismatched[p0] = len(assignments[p0]) != 0
+    ismatched[p1] = len(assignments[p1]) != 0
+    optionsLeft[p0] -= 100
+    optionsLeft[p1] -= 100
+
+def notMatched(person, assignments):
+    return len(assignments[person]) == 0
+
+
+def prefers(ratings, person, pal0, pal1):
+    return ratings[person][pal0] > ratings[person][pal1]
+
+
+# Never ever ever getting back together
+def taylorSwift(ratings, p0, p1, optionsLeft):
+    # print("tswift: " + str(p0) + " " + str(p1))
+    ratings[p0][p1] = -1
+    ratings[p1][p0] = -1
+    optionsLeft[p0] -= 1
+    optionsLeft[p1] -= 1
+
+
+def otherOptions(ratings, assignments, max_pals, ismatched, person):
+    prob_options = 0
+    total_options = 0
+    for option in range(len(ratings[person].tolist())):
+        if ratings[person][option] != -1:
+            total_options += 1
+            if ismatched[option] and max_pals[option] == len(assignments[option]):
+                prob_options += 1
+
+    # print(prob_options, total_options)
+    if prob_options == total_options:
+        return False
+    else:
+        return ratings[person].tolist().count(-1) != len(ratings[person])
+
+
+# Assigns all penpals. 
+# Uses a modified version of the Gale-Shapley stable marriage algorithm
+# Does not guarantee stable matching, but given large enough MAX_PALS 
+# parameter will match everyone together.
+# TODO: Could be more efficient with better style. Will fix given free time
+def assign_penpals(data, match_ratings, MAX_PALS, MULTIPLE_PALS):
+    # set up max_pals array
+    max_pals = []
+    for person in data:
+        if person[MULTIPLE_PALS] == "Yes":
+            max_pals.append(MAX_PALS)
+        else:
+            max_pals.append(1)
+
+    ismatched = [False] * len(data)
+
+    optionsLeft = []
+    for person in match_ratings:
+        optionsLeft.append(len(person) - person.tolist().count(-1))
+
+    penpal_assignments = pd = [[] for _ in range(len(data))]
+
+    while ismatched.count(False) > 0:
+        # p is index of person we're finding match for
+        p = optionsLeft.index(min(optionsLeft))
+        p_prefs = match_ratings[p].tolist()
+        pal = p_prefs.index(max(p_prefs))
+
+        if match_ratings[p][pal] < 0:
+            print("bad match: " + str(p) + " " + str(pal) + " " + str(match_ratings[p][pal]))
+            optionsLeft[p] += 100
+            ismatched[p] = True
+        if not ismatched[pal] or max_pals[pal] > len(penpal_assignments[pal]):
+            match(penpal_assignments, p, pal, ismatched, optionsLeft)
+        else:
+            for altpal in penpal_assignments[pal]:
+                if prefers(match_ratings, pal, p, altpal) and otherOptions(match_ratings, penpal_assignments, max_pals, ismatched, altpal):
+                    unmatch(penpal_assignments, pal, altpal, ismatched, optionsLeft)
+                    taylorSwift(match_ratings, pal, altpal, optionsLeft)
+                else:
+                    taylorSwift(match_ratings, p, pal, optionsLeft)
+
+    return penpal_assignments
+
+
+# Formats input data to get rid of duplicate entries
+def remove_duplicate_entries(responses, NAME, ADDRESS):
     # Get rid of duplicates
     names = set()
     addresses = set()
+
 
     # reversed so we get rid of first submission.
     # people tend to submit multiple times to change something
@@ -30,53 +119,7 @@ def remove_duplicate_entries(responses):
         addresses.add(response[ADDRESS])
 
 
-# create the final assignments 
-# TODO: Change this to adapted Stable Roommates problem with replacement for those who are ok with multiple pals
-def assign_penpals(data, match_ratings):
-    penpals = np.ones((len(data), 2)).astype(int)
-    penpals[:] = -1
-
-    rating_pool = [*range(len(match_ratings))]
-
-    multiple_pals = []
-    for pal in range(len(data)):
-        if data[pal][MULTIPLE_PALS] == "Yes":
-            multiple_pals.append(pal)
-
-    while len(rating_pool) != 0:
-        print(len(rating_pool))
-
-        # Need some matches structure.. how do I do this with multiple pals?
-        # Array of ints representing match for that index, if multiple matches, list in that index.
-        index_of_person = rating_pool[0]
-        person = match_ratings[index_of_person]
-
-        while person.tolist().index(max(person)) not in rating_pool \
-                and person.tolist().index(max(person)) not in multiple_pals:
-            person[person.tolist().index(max(person))] = 0
-            # TODO infinite loop
-
-        index_of_pal = person.tolist().index(max(person))
-        if index_of_pal in rating_pool:
-            penpals[index_of_person][0] = int(index_of_pal) + 1
-            rating_pool.remove(index_of_person)
-
-            penpals[index_of_pal][0] = int(index_of_person) + 1
-            rating_pool.remove(index_of_pal)
-        elif index_of_pal in multiple_pals:
-            penpals[index_of_person][0] = int(index_of_pal) + 1
-            rating_pool.remove(index_of_person)
-
-            penpals[index_of_pal][1] = int(index_of_person) + 1
-            multiple_pals.remove(index_of_pal)
-        else:
-            print("the pal must have been in either rating_pool or multiple_pals")
-            print("Algorithm doesn't converge..")
-            rating_pool.remove(index_of_person)
-
-    return penpals
-
-
+# Writes a matrix to given file name. `list` may be list of lists or np matrix
 def write_matrix_to_file(filename, list):
     with open(filename, mode='w+') as f:
         for i in list:
@@ -93,28 +136,29 @@ def main():  # args: input_filename attributes_filename
         print("Usage: python3 matchmaker.py input_file attributes_json")
         sys.exit(1)
 
-    # Preprocess the input data from the Google Form
-    data = list(csv.reader(open(sys.argv[1], "r"), delimiter="\t"))
-    # remove_duplicate_entries(data)
-
-    # Get rid of prompts from input data
-    data = np.array(data)[1:, 1:]
-
     # About data inputting
     #   mc_attr, semantic_attr, and fuzzy_attr come from attributes.json
     #   each will be an array with the indices into a response to get to x attribute
     #   attr_weights is an array of arrays, [[mc_weights], [fuzzy_weights], [semantic_weights]]
+    
     # Process input attributes json file:
     with open(sys.argv[2], "r") as f:
         attributes = json.load(f)
 
     NAME = attributes["NAME"][0]
     ADDRESS_0 = attributes["ADDRESS_0"][0]
-    ADDRESS_0 = attributes["ADDRESS_0"][0]
+    ADDRESS_1 = attributes["ADDRESS_1"][0]
     EMAIL_0 = attributes["EMAIL_0"][0]
     EMAIL_1 = attributes["NAME"][0]
     MULTIPLE_PALS = attributes["MULTIPLE_PALS"][0]
     PRONOUNS = attributes["PRONOUNS"][0]
+
+    # Preprocess the input data from the Google Form
+    data = list(csv.reader(open(sys.argv[1], "r"), delimiter="\t"))
+    remove_duplicate_entries(data, NAME + 1, ADDRESS_0 + 1)
+
+    # Get rid of prompts from input data
+    data = np.array(data)[1:, 1:]
 
     mc_attr = []
     fuzzy_attr = []
@@ -133,25 +177,27 @@ def main():  # args: input_filename attributes_filename
             attr_weights[2].append(attr_data[2])
 
     # Rate all potential Penpal matches
+    print("Rating all poassible matches...")
     ratings = match_rater.rate_matches(data, mc_attr, fuzzy_attr, semantic_attr, attr_weights)
-
     write_matrix_to_file('ratings.tsv', ratings)
 
-    print("Assigning penpals... ") #, end="")
     # Create Penpal Assignments
-    data = data[:, :5] # don't need all the responses anymore TODO: add pronouns to this
-    penpal_assignments = np.append(data, assign_penpals(data, ratings), axis=1)
-   
-    # # Format Output Table: Add hash number
-    penpal_assignments = np.append(np.array(range(1, len(penpal_assignments) + 1)).reshape(len(penpal_assignments), 1),
-                                   penpal_assignments, axis=1)
-
-    # Format Output Table: Add prompts
-    prompts = ["Hash", "Name", "Address_0", "Address_1", "Email_0", "Email_1", "Penpal_0", "Penpal_1"]
-    penpal_assignments = np.append(np.array(prompts).reshape(1, 8), penpal_assignments, axis=0)
+    print("Assigning penpals... ")
+    assignments = assign_penpals(data, ratings, 6, MULTIPLE_PALS)
+    
+    # Format output table & write to penpal_matches.tsv
+    print("All penpals assigned.. Writing to output")
+    for p_index in range(len(assignments)):
+        assignments[p_index].insert(0, p_index)
+        assignments[p_index].insert(1, data[p_index][0])
+        assignments[p_index].insert(2, data[p_index][7])
+        assignments[p_index].insert(3, data[p_index][9])
+        assignments[p_index].insert(4, data[p_index][10])
+        if len(assignments[p_index]) == 5:
+            assignments[p_index].append("NO MATCH")
 
     # Write penpals to file!!
-    write_matrix_to_file('penpal_matches.tsv', penpal_assignments)
+    write_matrix_to_file('penpal_matches.tsv', assignments)
     print("Done!")
 
 

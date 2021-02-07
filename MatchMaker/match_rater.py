@@ -70,6 +70,7 @@ def rate_mc(matrix_ratings, responses, mc_attributes, attribute_weights):
 
         for other_idx in range(len(responses)):
             if response_idx == other_idx:
+                curr_rating[other_idx] = -1
                 continue
 
             response = responses[response_idx]
@@ -77,9 +78,9 @@ def rate_mc(matrix_ratings, responses, mc_attributes, attribute_weights):
 
             # Specific attributes (Gender, Year)
             # if response GENDER not in other PAL_GENDER or vice versa, can't match
-            if (response[mc_attributes[PAL_GENDER]] != "Doesn't matter"
+            if ("Doesn't matter" not in response[mc_attributes[PAL_GENDER]]
                     and other[mc_attributes[GENDER]] not in response[mc_attributes[PAL_GENDER]]) \
-                    or (other[mc_attributes[PAL_GENDER]] != "Doesn't matter"
+                    or ("Doesn't matter" not in other[mc_attributes[PAL_GENDER]]
                         and response[mc_attributes[GENDER]] not in other[mc_attributes[PAL_GENDER]]):
                 curr_rating[other_idx] = -1
                 continue
